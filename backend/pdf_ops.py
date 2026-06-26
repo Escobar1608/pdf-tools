@@ -3,6 +3,7 @@ Operaciones PDF: unir, contar páginas, miniaturas y reconstrucción
 (reordenar / rotar / eliminar páginas).
 """
 
+import io
 from pathlib import Path
 
 import fitz  # PyMuPDF
@@ -248,3 +249,134 @@ def run_ocr(pdf_path: Path, out_path: Path, lang: str = "spa") -> None:
         language=lang, skip_text=True, progress_bar=False,
         optimize=0,
     )
+
+
+# ===========================================================================
+# FASE 3
+# ===========================================================================
+
+import zipfile
+
+
+def zip_files(paths: list[Path], output, arcnames: list[str] | None = None) -> None:
+    """Empaqueta los archivos en un ZIP escrito en `output`."""
+    with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as zf:
+        for i, path in enumerate(paths):
+            arcname = arcnames[i] if arcnames else path.name
+            zf.write(str(path), arcname=arcname)
+
+
+# ---------------------------------------------------------------------------
+# Dividir PDF
+# ---------------------------------------------------------------------------
+def parse_ranges(spec: str, total: int) -> list[tuple[int, int]]:
+    """
+    Convierte un texto como "1-5, 8, 10-12" en una lista de tramos
+    (inicio, fin) con índices base 0 e inclusivos. Valida contra `total`
+    (número de páginas). Las páginas son base 1 de cara al usuario.
+    """
+    tramos: list[tuple[int, int]] = []
+    for parte in spec.split(","):
+        parte = parte.strip()
+        if not parte:
+            continue
+        if "-" in parte:
+            ini_s, fin_s = parte.split("-", 1)
+            ini, fin = int(ini_s.strip()), int(fin_s.strip())
+        else:
+            ini = fin = int(parte)
+        if ini < 1 or fin < 1 or ini > total or fin > total or ini > fin:
+            raise ValueError(f"Rango inválido: '{parte}' (el PDF tiene {total} páginas)")
+        tramos.append((ini - 1, fin - 1))
+    if not tramos:
+        raise ValueError("No se indicó ningún rango válido")
+    return tramos
+
+
+def split(pdf_path: Path, out_dir: Path, mode: str, ranges: str, n: int,
+          base_name: str) -> list[Path]:
+    """
+    Divide el PDF y devuelve la lista de archivos generados.
+      - mode="rangos": un PDF por cada tramo de `ranges` ("1-5, 8, 10-12").
+      - mode="cada_n": tramos consecutivos de `n` páginas.
+    `base_name` es el nombre (sin extensión) usado para nombrar las salidas.
+    """
+    reader = PdfReader(str(pdf_path))
+    total = len(reader.pages)
+    if total == 0:
+        raise ValueError("El PDF no tiene páginas")
+
+    if mode == "rangos":
+        tramos = parse_ranges(ranges, total)
+    elif mode == "cada_n":
+        if n < 1:
+            raise ValueError("N debe ser al menos 1")
+        tramos = [(i, min(i + n - 1, total - 1)) for i in range(0, total, n)]
+    else:
+        raise ValueError("Modo de división inválido")
+
+    salidas: list[Path] = []
+    for ini, fin in tramos:
+        writer = PdfWriter()
+        for idx in range(ini, fin + 1):
+            writer.add_page(reader.pages[idx])
+        etiqueta = f"{ini + 1}" if ini == fin else f"{ini + 1}-{fin + 1}"
+        out_path = out_dir / f"{base_name}_{etiqueta}.pdf"
+        with open(out_path, "wb") as f:
+            writer.write(f)
+        salidas.append(out_path)
+    return salidas
+
+
+# ---------------------------------------------------------------------------
+# PDF -> Imágenes
+# ---------------------------------------------------------------------------
+def pdf_to_images(pdf_path: Path, out_dir: Path, fmt: str = "jpg",
+                  dpi: int = 150) -> list[Path]:
+    """Renderiza cada página como imagen (jpg/png) y devuelve la lista."""
+    fmt = fmt.lower()
+    if fmt not in ("jpg", "png"):
+        raise ValueError("Formato de imagen inválido")
+    zoom = dpi / 72.0
+    matrix = fitz.Matrix(zoom, zoom)
+    salidas: list[Path] = []
+    with fitz.open(str(pdf_path)) as doc:
+        if doc.needs_pass:
+            raise ValueError("PDF protegido con contraseña")
+        ancho = len(str(doc.page_count))
+        for i, page in enumerate(doc):
+            pix = page.get_pixmap(matrix=matrix, alpha=False)
+            out_path = out_dir / f"pagina_{i + 1:0{ancho}d}.{fmt}"
+            if fmt == "jpg":
+                pix.save(str(out_path), jpg_quality=85)
+            else:
+                pix.save(str(out_path))
+            salidas.append(out_path)
+    return salidas
+
+
+# ---------------------------------------------------------------------------
+# Imágenes -> PDF
+# ---------------------------------------------------------------------------
+def images_to_pdf(image_paths: list[Path], output) -> None:
+    """Concatena varias imágenes en un único PDF, una imagen por página."""
+    writer = PdfWriter()
+    for path in image_paths:
+        with fitz.open(str(path)) as img:
+            pdf_bytes = img.convert_to_pdf()
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        for page in reader.pages:
+            writer.add_page(page)
+    writer.write(output)
+
+
+# ---------------------------------------------------------------------------
+# PDF -> Word (.docx)
+# ---------------------------------------------------------------------------
+def pdf_to_word(pdf_path: Path, out_path: Path) -> None:
+    from pdf2docx import Converter
+    cv = Converter(str(pdf_path))
+    try:
+        cv.convert(str(out_path))
+    finally:
+        cv.close()

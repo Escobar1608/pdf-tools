@@ -195,9 +195,10 @@ def capabilities():
 
 
 async def _process_single(file: UploadFile, allowed_exts: set[str], worker, out_name: str,
-                          extra_headers: dict | None = None):
+                          extra_headers: dict | None = None,
+                          media_type: str = "application/pdf"):
     """Guarda el archivo subido, ejecuta `worker(src, session_dir)` en un hilo
-    y devuelve el PDF resultante."""
+    y devuelve el archivo resultante (PDF por defecto, o el `media_type` indicado)."""
     ext = Path(file.filename or "").suffix.lower()
     if ext not in allowed_exts:
         raise HTTPException(status_code=400,
@@ -217,7 +218,7 @@ async def _process_single(file: UploadFile, allowed_exts: set[str], worker, out_
     headers = {"Content-Disposition": f'attachment; filename="{out_name}"'}
     if extra_headers:
         headers.update(extra_headers)
-    return StreamingResponse(io.BytesIO(data), media_type="application/pdf", headers=headers)
+    return StreamingResponse(io.BytesIO(data), media_type=media_type, headers=headers)
 
 
 @app.post("/api/compress")
@@ -352,6 +353,135 @@ async def ocr_pdf(file: UploadFile = File(...), lang: str = Form("spa")):
 
     name = Path(file.filename).stem + "_ocr.pdf"
     return await _process_single(file, {".pdf"}, worker, name)
+
+
+# ===========================================================================
+# FASE 3
+# ===========================================================================
+
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+
+
+@app.post("/api/split")
+async def split_pdf(
+    file: UploadFile = File(...),
+    mode: str = Form("rangos"),
+    ranges: str = Form(""),
+    n: int = Form(1),
+):
+    if mode not in ("rangos", "cada_n"):
+        raise HTTPException(status_code=400, detail="Modo de división inválido")
+    if mode == "rangos" and not ranges.strip():
+        raise HTTPException(status_code=400, detail="Indica al menos un rango (ej. 1-5, 8)")
+
+    ext = Path(file.filename or "").suffix.lower()
+    if ext != ".pdf":
+        raise HTTPException(status_code=400, detail="El archivo debe ser un PDF")
+
+    base_name = Path(file.filename).stem
+    session_dir = TEMP_DIR / str(uuid.uuid4())
+    session_dir.mkdir()
+    src = session_dir / "entrada.pdf"
+    await _save_upload(file, src)
+
+    def worker():
+        salidas = pdf_ops.split(src, session_dir, mode, ranges, n, base_name)
+        if len(salidas) == 1:
+            return salidas[0], "application/pdf", salidas[0].name
+        zip_path = session_dir / "dividido.zip"
+        with open(zip_path, "wb") as f:
+            pdf_ops.zip_files(salidas, f)
+        return zip_path, "application/zip", f"{base_name}_dividido.zip"
+
+    try:
+        try:
+            result_path, media_type, out_name = await run_in_threadpool(worker)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        data = result_path.read_bytes()
+    finally:
+        shutil.rmtree(session_dir, ignore_errors=True)
+
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{out_name}"'},
+    )
+
+
+@app.post("/api/pdf-to-images")
+async def pdf_to_images_endpoint(
+    file: UploadFile = File(...),
+    formato: str = Form("jpg"),
+):
+    if formato not in ("jpg", "png"):
+        raise HTTPException(status_code=400, detail="Formato inválido")
+
+    base_name = Path(file.filename).stem
+
+    def worker(src, session_dir):
+        try:
+            imagenes = pdf_ops.pdf_to_images(src, session_dir, formato)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        zip_path = session_dir / "imagenes.zip"
+        with open(zip_path, "wb") as f:
+            pdf_ops.zip_files(imagenes, f)
+        return zip_path
+
+    name = f"{base_name}_imagenes.zip"
+    return await _process_single(file, {".pdf"}, worker, name,
+                                 media_type="application/zip")
+
+
+@app.post("/api/images-to-pdf")
+async def images_to_pdf_endpoint(files: list[UploadFile] = File(...)):
+    if len(files) < 1:
+        raise HTTPException(status_code=400, detail="Sube al menos una imagen")
+
+    session_dir = TEMP_DIR / str(uuid.uuid4())
+    session_dir.mkdir()
+    paths = []
+    try:
+        for i, upload in enumerate(files):
+            ext = Path(upload.filename or "").suffix.lower()
+            if ext not in IMAGE_EXTENSIONS:
+                raise HTTPException(status_code=400, detail=f"'{upload.filename}' no es una imagen JPG o PNG")
+            dest = session_dir / f"{i:04d}{ext}"
+            await _save_upload(upload, dest)
+            paths.append(dest)
+
+        output = io.BytesIO()
+        try:
+            await run_in_threadpool(pdf_ops.images_to_pdf, paths, output)
+        except Exception:
+            raise HTTPException(status_code=400, detail="No se pudieron convertir las imágenes")
+        output.seek(0)
+    finally:
+        shutil.rmtree(session_dir, ignore_errors=True)
+
+    return StreamingResponse(
+        output,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="documento.pdf"'},
+    )
+
+
+@app.post("/api/pdf-to-word")
+async def pdf_to_word_endpoint(file: UploadFile = File(...)):
+    def worker(src, session_dir):
+        out = session_dir / "salida.docx"
+        try:
+            pdf_ops.pdf_to_word(src, out)
+        except Exception:
+            raise HTTPException(status_code=400, detail="No se pudo convertir el PDF a Word")
+        return out
+
+    name = Path(file.filename).stem + ".docx"
+    return await _process_single(
+        file, {".pdf"}, worker, name,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    )
 
 
 # ---------------------------------------------------------------------------

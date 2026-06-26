@@ -16,7 +16,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import DropZone from './DropZone.jsx'
-import { mergePdfs, downloadBlob } from '../api.js'
+import { uploadFiles, downloadBlob } from '../api.js'
 
 function formatSize(bytes) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
@@ -63,7 +63,22 @@ function FileRow({ item, index, onRemove }) {
 
 let nextId = 1
 
-export default function MergeTool() {
+/**
+ * Sube varios archivos ordenables (arrastrando) a un endpoint y descarga 1 resultado.
+ * Por defecto se comporta como "Unir PDF"; con props sirve para "Imágenes a PDF".
+ */
+export default function MergeTool({
+  endpoint = '/api/merge',
+  accept = ['.pdf'],
+  outName = 'unido.pdf',
+  minFiles = 2,
+  dropLabel,
+  dropHint = 'o haz clic para seleccionar · puedes añadir más después',
+  actionVerb = 'Unir',
+  busyLabel = 'Uniendo…',
+  itemNoun = 'PDFs',
+  okText = 'PDF unido y descargado.',
+}) {
   const [items, setItems] = useState([])
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState(null) // {type, text}
@@ -95,9 +110,9 @@ export default function MergeTool() {
     setBusy(true)
     setStatus(null)
     try {
-      const blob = await mergePdfs(items.map((i) => i.file))
-      downloadBlob(blob, 'unido.pdf')
-      setStatus({ type: 'ok', text: 'PDF unido y descargado.' })
+      const blob = await uploadFiles(endpoint, items.map((i) => i.file))
+      downloadBlob(blob, outName)
+      setStatus({ type: 'ok', text: okText })
     } catch (err) {
       setStatus({ type: 'error', text: err.message })
     } finally {
@@ -109,8 +124,10 @@ export default function MergeTool() {
     <>
       <DropZone
         multiple
+        accept={accept}
+        label={dropLabel}
         onFiles={addFiles}
-        hint="o haz clic para seleccionar &middot; puedes añadir más después"
+        hint={dropHint}
       />
 
       {items.length > 0 && (
@@ -142,10 +159,10 @@ export default function MergeTool() {
           <div className="action-bar">
             <button
               className="btn-primary"
-              disabled={busy || items.length < 2}
+              disabled={busy || items.length < minFiles}
               onClick={handleMerge}
             >
-              {busy ? 'Uniendo…' : `Unir ${items.length} PDFs`}
+              {busy ? busyLabel : `${actionVerb} ${items.length} ${itemNoun}`}
             </button>
             <button
               className="btn-secondary"
@@ -158,8 +175,8 @@ export default function MergeTool() {
               Vaciar lista
             </button>
             {busy && <span className="spinner" aria-hidden="true" />}
-            {items.length < 2 && (
-              <span className="status-msg">Añade al menos 2 archivos.</span>
+            {items.length < minFiles && (
+              <span className="status-msg">Añade al menos {minFiles} archivo{minFiles > 1 ? 's' : ''}.</span>
             )}
             {status && (
               <span className={`status-msg ${status.type}`}>{status.text}</span>

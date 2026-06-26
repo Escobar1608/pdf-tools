@@ -9,10 +9,20 @@ async function parseError(res) {
   }
 }
 
-export async function mergePdfs(files) {
+// Extrae el filename de la cabecera Content-Disposition (si viene).
+function filenameFromHeaders(headers) {
+  const cd = headers.get('Content-Disposition') || ''
+  const star = /filename\*=(?:UTF-8'')?([^;]+)/i.exec(cd)
+  if (star) return decodeURIComponent(star[1].trim().replace(/^"|"$/g, ''))
+  const plain = /filename="?([^";]+)"?/i.exec(cd)
+  return plain ? plain[1].trim() : null
+}
+
+// Sube varios archivos a un endpoint (campo 'files') y devuelve el blob resultante.
+export async function uploadFiles(endpoint, files) {
   const form = new FormData()
   files.forEach((f) => form.append('files', f))
-  const res = await fetch('/api/merge', { method: 'POST', body: form })
+  const res = await fetch(endpoint, { method: 'POST', body: form })
   if (!res.ok) throw new Error(await parseError(res))
   return res.blob()
 }
@@ -55,7 +65,8 @@ export async function processFile(endpoint, file, fields = {}) {
   Object.entries(fields).forEach(([k, v]) => form.append(k, v))
   const res = await fetch(endpoint, { method: 'POST', body: form })
   if (!res.ok) throw new Error(await parseError(res))
-  return { blob: await res.blob(), headers: res.headers }
+  const filename = filenameFromHeaders(res.headers)
+  return { blob: await res.blob(), headers: res.headers, filename }
 }
 
 export async function getCapabilities() {
