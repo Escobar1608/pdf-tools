@@ -5,3 +5,4 @@ PyMuPDF>=1.24
 python-multipart>=0.0.12
 pikepdf>=9.0
 ocrmypdf>=16.0
+pdf2docx>=0.5

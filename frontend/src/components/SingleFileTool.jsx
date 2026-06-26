@@ -19,6 +19,8 @@ function formatSize(bytes) {
  *  - buttonLabel
  *  - outName:    (nombreOriginal) => nombre de descarga
  *  - showCompression: muestra "de X a Y" leyendo cabeceras X-Original-Size / X-Final-Size
+ *  - useServerFilename: usa el nombre que envía el servidor (Content-Disposition)
+ *      en vez de outName; útil cuando la extensión depende del resultado (PDF o ZIP).
  */
 export default function SingleFileTool({
   endpoint,
@@ -28,6 +30,7 @@ export default function SingleFileTool({
   buttonLabel = 'Procesar y descargar',
   outName,
   showCompression = false,
+  useServerFilename = false,
 }) {
   const [file, setFile] = useState(null)
   const [values, setValues] = useState(() =>
@@ -44,8 +47,9 @@ export default function SingleFileTool({
     setBusy(true)
     setStatus(null)
     try {
-      const { blob, headers } = await processFile(endpoint, file, values)
-      downloadBlob(blob, outName(file.name))
+      const { blob, headers, filename } = await processFile(endpoint, file, values)
+      const downloadName = useServerFilename && filename ? filename : outName(file.name)
+      downloadBlob(blob, downloadName)
       if (showCompression) {
         const orig = Number(headers.get('X-Original-Size'))
         const fin = Number(headers.get('X-Final-Size'))

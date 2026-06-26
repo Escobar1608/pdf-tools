@@ -18,6 +18,10 @@ const ICONS = {
   unlock: <Icon><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 7.7-1.5" /></Icon>,
   watermark: <Icon><path d="M12 3c3 4.5 6 7.7 6 11a6 6 0 0 1-12 0c0-3.3 3-6.5 6-11z" /></Icon>,
   pagenumbers: <Icon><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M11 17h3M11 17v-4l-1 1" /></Icon>,
+  split: <Icon><path d="M14 4h5a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-5" /><path d="M10 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5" /><path d="M12 3v18" strokeDasharray="2 3" /></Icon>,
+  pdf_to_images: <Icon><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="9" cy="10" r="1.5" /><path d="m21 16-4.5-4.5L8 20" /></Icon>,
+  images_to_pdf: <Icon><rect x="3" y="3" width="14" height="14" rx="2" /><path d="M7 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2" /><path d="m3 13 3-3 4 4" /></Icon>,
+  pdf_to_word: <Icon><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="m8 13 1.5 5 1.5-4 1.5 4 1.5-5" /></Icon>,
 }
 
 const SECTIONS = [
@@ -49,6 +53,15 @@ const SECTIONS = [
     tools: [
       { id: 'watermark', name: 'Marca de agua', desc: 'Añade un texto diagonal en todas las páginas.' },
       { id: 'pagenumbers', name: 'Números de página', desc: 'Numera el documento en la posición que elijas.' },
+    ],
+  },
+  {
+    title: 'Dividir y exportar',
+    tools: [
+      { id: 'split', name: 'Dividir PDF', desc: 'Separa por rangos (1-5, 8…) o cada N páginas; varios archivos llegan en ZIP.' },
+      { id: 'pdf_to_images', name: 'PDF a imágenes', desc: 'Convierte cada página en JPG o PNG y descárgalas en un ZIP.' },
+      { id: 'images_to_pdf', name: 'Imágenes a PDF', desc: 'Combina varias imágenes JPG o PNG en un solo PDF.' },
+      { id: 'pdf_to_word', name: 'PDF a Word', desc: 'Convierte el PDF en un documento .docx editable.' },
     ],
   },
 ]

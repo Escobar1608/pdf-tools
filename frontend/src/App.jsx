@@ -14,6 +14,86 @@ const TOOLS = {
   },
   rotate: { title: 'Rotar PDF', element: <PageEditor key="rotate" canRotate /> },
 
+  split: {
+    title: 'Dividir PDF',
+    element: (
+      <SingleFileTool
+        key="split"
+        endpoint="/api/split"
+        buttonLabel="Dividir y descargar"
+        outName={(n) => `${stem(n)}_dividido.zip`}
+        useServerFilename
+        fields={[
+          {
+            name: 'mode', label: 'Modo de división', type: 'select', default: 'rangos',
+            options: [
+              { value: 'rangos', label: 'Por rangos de páginas' },
+              { value: 'cada_n', label: 'Cada N páginas' },
+            ],
+          },
+          {
+            name: 'ranges', label: 'Rangos (ej. 1-5, 8, 10-12)', type: 'text',
+            placeholder: '1-5, 8, 10-12',
+          },
+          {
+            name: 'n', label: 'Partir cada N páginas (modo "Cada N")', type: 'number',
+            default: '5', min: 1,
+          },
+        ]}
+      />
+    ),
+  },
+  pdf_to_images: {
+    title: 'PDF a imágenes',
+    element: (
+      <SingleFileTool
+        key="pdf_to_images"
+        endpoint="/api/pdf-to-images"
+        buttonLabel="Convertir y descargar (ZIP)"
+        outName={(n) => `${stem(n)}_imagenes.zip`}
+        useServerFilename
+        fields={[
+          {
+            name: 'formato', label: 'Formato de imagen', type: 'select', default: 'jpg',
+            options: [
+              { value: 'jpg', label: 'JPG — menor tamaño' },
+              { value: 'png', label: 'PNG — sin pérdida' },
+            ],
+          },
+        ]}
+      />
+    ),
+  },
+  images_to_pdf: {
+    title: 'Imágenes a PDF',
+    element: (
+      <MergeTool
+        key="images_to_pdf"
+        endpoint="/api/images-to-pdf"
+        accept={['.jpg', '.jpeg', '.png']}
+        outName="documento.pdf"
+        minFiles={1}
+        dropLabel="Arrastra tus imágenes JPG o PNG aquí"
+        actionVerb="Crear PDF con"
+        busyLabel="Creando PDF…"
+        itemNoun="imágenes"
+        okText="PDF creado y descargado."
+      />
+    ),
+  },
+  pdf_to_word: {
+    title: 'PDF a Word',
+    element: (
+      <SingleFileTool
+        key="pdf_to_word"
+        endpoint="/api/pdf-to-word"
+        buttonLabel="Convertir a Word"
+        outName={(n) => `${stem(n)}.docx`}
+        useServerFilename
+      />
+    ),
+  },
+
   compress: {
     title: 'Comprimir PDF',
     element: (
