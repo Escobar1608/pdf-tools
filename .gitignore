@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+backend/venv/
+backend/temp/
+*.log
+
+# Node / frontend
+node_modules/
+frontend/node_modules/
+npm-debug.log*
+
+# Build del frontend: se genera con `npm run build`.
+# Lo IGNORAMOS porque no conviene versionar artefactos compilados.
+# (ver nota en el README sobre cómo generarlo)
+frontend/dist/
+
+# Sistema operativo / editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Archivos temporales de procesamiento
+*.tmp
