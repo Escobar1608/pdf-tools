@@ -5,9 +5,45 @@ procesan en el servidor donde corre la app y **nunca salen de tu red**.
 
 **Stack:** FastAPI (Python) · React + Vite · pypdf · PyMuPDF · pikepdf · ocrmypdf
 
-> Pensada para entornos offline / red interna: sin CDNs externos, sin enviar
-> archivos a la nube. Todo el procesamiento ocurre en el equipo que sirve la app.
+## Dos formas de desplegar
 
+1. **Docker (recomendado)** — todo incluido (Python, LibreOffice, Tesseract,
+   Ghostscript y el frontend ya compilado). Las 10 herramientas quedan activas
+   desde el primer momento, sin instalar nada a mano. Ver "Despliegue con Docker".
+2. **Manual en Windows** — con `instalar.bat` / `ejecutar.bat`. Office a PDF y
+   OCR requieren instalar LibreOffice y Tesseract+Ghostscript aparte. Ver
+   "Instalación (una sola vez)".
+
+> En ambos casos los programas externos solo se necesitan en **el servidor**.
+> Los usuarios finales únicamente abren el navegador; no instalan nada.
+
+## Despliegue con Docker
+
+Requiere Docker y Docker Compose en la máquina servidor.
+
+```
+docker compose up -d --build
+```
+
+La primera construcción descarga las imágenes base y los programas (LibreOffice,
+Tesseract, etc.), así que necesita salida a internet **una sola vez**. Una vez
+construida, la imagen corre 100% offline.
+
+Cuando termine, la app está en `http://localhost:8000` (y en
+`http://IP-del-servidor:8000` para el resto de la red interna).
+
+Comandos útiles:
+
+```
+docker compose logs -f        # ver registros
+docker compose down           # detener
+docker compose up -d --build  # reconstruir tras cambios en el código
+```
+
+> **Entornos con DNS interno restringido:** construye la imagen en una máquina
+> con salida a internet. Tras `docker compose build`, puedes exportar la imagen
+> con `docker save pdf-tools:latest -o pdf-tools.tar` y cargarla en el servidor
+> air-gapped con `docker load -i pdf-tools.tar`, sin necesitar internet allí.
 
 Herramientas incluidas:
 
@@ -91,7 +127,7 @@ falten los programas; al instalarlos y reiniciar el servidor se activan solas.
 
 ## Inicio automático con Windows (opcional)
 
-Puedes crear una tarea programada:
+Igual que con el script de SKidata, puedes crear una tarea programada:
 
 1. Abrir **Programador de tareas** → *Crear tarea básica*
 2. Desencadenador: **Al iniciar sesión** (o *Al iniciar el equipo*)

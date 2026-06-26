@@ -1,0 +1,12 @@
+services:
+  pdf-tools:
+    build: .
+    image: pdf-tools:latest
+    container_name: pdf-tools
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    # Los archivos temporales viven dentro del contenedor y se autolimpian.
+    # Si prefieres que persistan fuera, descomenta el volumen:
+    # volumes:
+    #   - ./backend/temp:/app/backend/temp

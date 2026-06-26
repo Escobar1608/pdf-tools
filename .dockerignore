@@ -1,0 +1,12 @@
+# No copiar artefactos pesados o locales al contexto de build
+**/node_modules
+**/venv
+**/.venv
+**/__pycache__
+**/*.pyc
+backend/temp/*
+frontend/dist
+.git
+*.log
+*.zip
+README.md
